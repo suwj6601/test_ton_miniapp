@@ -1,13 +1,18 @@
-import { TonConnectButton } from "@tonconnect/ui-react";
 import ProviderComponent from "./components/ProviderComponent";
-import Test from "./view/Test";
+import MainPage from "./view/MainPage";
 
 function App() {
   return (
     <ProviderComponent>
-      <div style={{ display: "flex", justifyContent: "center" }}>
-        {/* <TonConnectButton /> */}
-        <Test />
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "center",
+          backgroundColor: "white",
+          height: "100vh",
+        }}
+      >
+        <MainPage />
       </div>
     </ProviderComponent>
   );
