@@ -17,7 +17,7 @@ const Test = () => {
   // send token
   const [walletAddressReceiver, setWalletAddressReceiver] =
     useState<string>("");
-  const [amount, setAmount] = useState<number>(0);
+  const [amount, setAmount] = useState<string>("0");
 
   const [walletBalance, setWalletBalance] = useState<number>(0);
   const getWalletBalance = async (address: string) => {
@@ -40,11 +40,12 @@ const Test = () => {
 
   // Send TON token
   const onSendToken = async () => {
+    const amountSend = Number(amount);
     if (
       !walletAddressReceiver ||
       !amount ||
-      amount <= 0 ||
-      amount > walletBalance
+      amountSend <= 0 ||
+      amountSend > walletBalance
     ) {
       toast.error("Invalid address or amount");
     }
@@ -54,17 +55,19 @@ const Test = () => {
         messages: [
           {
             address: walletAddressReceiver,
-            amount: (amount * 1e9).toString(),
+            amount: (amountSend * 1e9).toString(),
           },
         ],
         network: CHAIN.TESTNET, // make it on testnet
       };
 
       const txBoc = await tonConnectUI.sendTransaction(myTransaction);
-      console.log("txBoc: ", txBoc);
-      setRefreshBalance((pre) => !pre);
-      setAmount(0);
-      setWalletAddressReceiver("");
+
+      if (txBoc.boc) {
+        setRefreshBalance((pre) => !pre);
+        setAmount("0");
+        setWalletAddressReceiver("");
+      }
     } catch (error) {
       console.log("onSendToken error", error);
     }
@@ -75,7 +78,7 @@ const Test = () => {
       if (!walletInfo) {
         setWalletBalance(0);
         setWalletAddressReceiver("");
-        setAmount(0);
+        setAmount("0");
       }
     });
   }, []);
@@ -112,11 +115,13 @@ const Test = () => {
           placeholder="Address..."
           onChange={(e) => setWalletAddressReceiver(e.target.value)}
           size="small"
+          value={walletAddressReceiver}
         />
         <TextField
           placeholder="Amount..."
-          onChange={(e) => setAmount(Number(e.target.value))}
+          onChange={(e) => setAmount(e.target.value)}
           size="small"
+          value={amount}
         />
 
         <Button onClick={onSendToken} variant="contained">
