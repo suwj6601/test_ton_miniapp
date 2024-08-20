@@ -7,19 +7,24 @@ import {
 } from "@tonconnect/ui-react";
 import { useEffect, useState } from "react";
 import { shortenAddress } from "../../utils";
-import { Button, TextField } from "@mui/material";
+import { Box, Button, Switch, TextField } from "@mui/material";
 import { toast } from "react-hot-toast";
 
+import { Address, beginCell, toNano } from "@ton/ton";
+
 const Test = () => {
-  const walletAddress = useTonAddress();
-  const [tonConnectUI, setOption] = useTonConnectUI();
   const [refreshBalance, setRefreshBalance] = useState<boolean>(false);
-  // send token
   const [walletAddressReceiver, setWalletAddressReceiver] =
     useState<string>("");
-  const [amount, setAmount] = useState<string>("0");
-
+  const [amount, setAmount] = useState<string>("");
   const [walletBalance, setWalletBalance] = useState<number>(0);
+  const [isSendJetton, setIsSendJetton] = useState<boolean>(false);
+  const [jettonAddress, setJettonAddress] = useState<string>("");
+  const [sendMessage, setSendMessage] = useState<string>("");
+
+  const walletAddress = useTonAddress();
+  const [tonConnectUI, setOption] = useTonConnectUI();
+
   const getWalletBalance = async (address: string) => {
     try {
       const response = await fetch(
@@ -38,24 +43,79 @@ const Test = () => {
     }
   };
 
-  // Send TON token
   const onSendToken = async () => {
     const amountSend = Number(amount);
-    if (
-      !walletAddressReceiver ||
-      !amount ||
-      amountSend <= 0 ||
-      amountSend > walletBalance
-    ) {
+    if (!walletAddressReceiver || !amount || amountSend <= 0) {
       toast.error("Invalid address or amount");
+      return;
     }
+
     try {
+      // Send Jetton token
+      if (isSendJetton) {
+        const destinationAddress = Address.parse(walletAddressReceiver);
+        const jettonWalletContract = Address.parse(jettonAddress);
+
+        const isSendUsdt =
+          jettonAddress === "kQAYLTBDRdU0I0geDg37LgCnOz1oSG5G0q0GZIerd9qnVtDC";
+
+        const forwardPayload = beginCell()
+          .storeUint(0, 32) // 0 opcode means we have a comment
+          .storeStringTail(sendMessage)
+          .endCell();
+
+        const body = beginCell()
+          .storeUint(0xf8a7ea5, 32) // opcode for jetton transfer
+          .storeUint(0, 64) // query id
+          .storeCoins(
+            isSendUsdt
+              ? toNano((Number(amount) / 1000).toString())
+              : toNano(Number(amount).toString())
+          ) // jetton amount, amount * 10^9 , USDT ???
+          .storeAddress(destinationAddress) // TON wallet destination address
+          .storeAddress(destinationAddress) // response excess destination
+          .storeBit(0) // no custom payload
+          .storeCoins(0) // forward amount (if >0, will send notification message)
+          .storeBit(1) // we store forwardPayload as a reference
+          .storeRef(forwardPayload)
+          .endCell();
+
+        const myTransaction = {
+          validUntil: Math.floor(Date.now() / 1000) + 360,
+          messages: [
+            {
+              address: jettonWalletContract.toString(), // sender jetton wallet
+              amount: toNano(0.05).toString(), // for commission fees, excess will be returned
+              payload: body.toBoc().toString("base64"), // payload with jetton transfer and comment body
+            },
+          ],
+        };
+
+        const txBoc = await tonConnectUI.sendTransaction(myTransaction);
+        if (txBoc.boc) {
+          setJettonAddress("");
+          setRefreshBalance((pre) => !pre);
+          setAmount("");
+          setWalletAddressReceiver("");
+          setSendMessage("");
+        }
+
+        return;
+        // end of send jetton token
+      }
+
+      const messageBody = beginCell()
+        .storeUint(0, 32) // Opcode for comment (0 is typically used for plain text)
+        .storeStringTail(sendMessage) // Your custom message
+        .endCell();
+      // Send TONtoken
       const myTransaction = {
         validUntil: Math.floor(Date.now() / 1000) + 60,
         messages: [
           {
             address: walletAddressReceiver,
             amount: (amountSend * 1e9).toString(),
+            payload: messageBody?.toBoc()?.toString("base64"),
           },
         ],
         network: CHAIN.TESTNET, // make it on testnet
@@ -67,6 +127,7 @@ const Test = () => {
         setRefreshBalance((pre) => !pre);
         setAmount("0");
         setWalletAddressReceiver("");
+        setSendMessage("");
       }
     } catch (error) {
       console.log("onSendToken error", error);
@@ -77,8 +138,9 @@ const Test = () => {
     tonConnectUI.connector.onStatusChange((walletInfo) => {
       if (!walletInfo) {
         setWalletBalance(0);
+        setAmount("");
         setWalletAddressReceiver("");
-        setAmount("0");
+        setSendMessage("");
       }
     });
   }, []);
@@ -108,20 +170,43 @@ const Test = () => {
       <p>Wallet address: {shortenAddress(walletAddress)}</p>
       <p>Wallet balance: {walletBalance} TON</p>
 
-      {/* send transaction */}
+      {/* SEND TRANSACTION */}
 
       <div style={{ display: "flex", flexDirection: "column", gap: "15px" }}>
+        <Box sx={{ display: "flex", alignItems: "center" }}>
+          <Switch onChange={(e) => setIsSendJetton(e.target.checked)} />
+          <p>Send Jetton token</p>
+        </Box>
+        {isSendJetton && (
+          <TextField
+            placeholder="Jetton address..."
+            onChange={(e) => setJettonAddress(e.target.value)}
+            size="small"
+            value={jettonAddress}
+            label="Jetton address"
+          />
+        )}
+
         <TextField
           placeholder="Address..."
           onChange={(e) => setWalletAddressReceiver(e.target.value)}
           size="small"
           value={walletAddressReceiver}
+          label="Recipe Address"
         />
         <TextField
           placeholder="Amount..."
           onChange={(e) => setAmount(e.target.value)}
           size="small"
           value={amount}
+          label="Amount"
+        />
+        <TextField
+          placeholder="Message..."
+          onChange={(e) => setSendMessage(e.target.value)}
+          size="small"
+          value={sendMessage}
+          label="Message"
         />
 
         <Button onClick={onSendToken} variant="contained">
