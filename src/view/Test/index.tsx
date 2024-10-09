@@ -11,6 +11,7 @@ import { Box, Button, Switch, TextField } from "@mui/material";
 import { toast } from "react-hot-toast";
 
 import { Address, beginCell, toNano } from "@ton/ton";
+import WebApp from "@twa-dev/sdk";
 
 const Test = () => {
   const [refreshBalance, setRefreshBalance] = useState<boolean>(false);
@@ -22,8 +23,22 @@ const Test = () => {
   const [jettonAddress, setJettonAddress] = useState<string>("");
   const [sendMessage, setSendMessage] = useState<string>("");
 
+  const [ref, setRef] = useState<string | null>(null);
+
   const walletAddress = useTonAddress();
   const [tonConnectUI, setOption] = useTonConnectUI();
+
+  useEffect(() => {
+    if (WebApp.initDataUnsafe) {
+      const encodeInitData = decodeURIComponent(WebApp.initData);
+
+      const params = new URLSearchParams(encodeInitData);
+
+      const ref = params.get("start_param");
+      console.log("ref: ", ref);
+      setRef(ref);
+    }
+  }, []);
 
   const getWalletBalance = async (address: string) => {
     try {
@@ -166,6 +181,7 @@ const Test = () => {
         flexDirection: "column",
       }}
     >
+      {<p>{ref ? `Your ref: ${ref}` : "No ref"}</p>}
       <TonConnectButton />
       <p>Wallet address: {shortenAddress(walletAddress)}</p>
       <p>Wallet balance: {walletBalance} TON</p>
